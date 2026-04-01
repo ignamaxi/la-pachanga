@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="La Pachanga">
 <meta name="theme-color" content="#070e07">
 <title>La Pachanga \u26bd</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -102,6 +104,14 @@ th{color:var(--txt2);font-weight:600;font-size:10px;text-transform:uppercase;bor
 const CHX=['#4ade80','#fbbf24','#f97316'];
 const CSEL=['sg','sb','so'];
 const SK_H='ph9',SK_C='pc9',SK_P='pp3',SK_K='pak',SK_N='pnk9',SK_CFG='pcfg9';
+/* ── Firebase ──────────────────────────────────────────────────────────── */
+var _db=null;
+try{
+  firebase.initializeApp({apiKey:"AIzaSyAYvL0QzTqOpkVvcWv_L0K5GrmLh3m_Gxk",authDomain:"la-pachanga-a97b9.firebaseapp.com",projectId:"la-pachanga-a97b9",storageBucket:"la-pachanga-a97b9.firebasestorage.app",messagingSenderId:"425506069164",appId:"1:425506069164:web:91e3d5e3ee047a4b541d09"});
+  _db=firebase.firestore();
+}catch(e){}
+function _fsSet(col,docId,data){try{if(_db)_db.collection(col).doc(docId).set(data);}catch(e){}}
+function _fsDel(col,docId){try{if(_db)_db.collection(col).doc(docId).delete();}catch(e){}}
 const DFLT_CFG={pin:'',nTeams:3,ppt:5,secs:240,goals:2};
 const DP=['Agustín Begué','Bruno Pertile','Facundo Fernandez','Federico Fiori','Gaspar Botti','Gaspar del Río','Ignacio Mazzi','Manuel Brussino','Mateo Bonacalza','Mateo Caño','Matías Fernandez','Nahuel Torres Arata','Nicolas Moguilevsky','Ramiro Hoqui','Tobías Botti','Tomás Dominguez','Tomás Ingaramo','Tomás Rendo','Toti Manza'];
 const gid=()=>Math.random().toString(36).slice(2,9);
@@ -117,7 +127,7 @@ const sbl=arr=>[...arr].sort((a,b)=>{const c=ln(a).localeCompare(ln(b),'es',{sen
 const esc=s=>{if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');};
 const vib=ms=>{try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){}};
 const ld=()=>{try{return{h:JSON.parse(localStorage.getItem(SK_H)||'[]'),c:JSON.parse(localStorage.getItem(SK_C)||'null'),p:JSON.parse(localStorage.getItem(SK_P)||'null')};}catch(e){return{h:[],c:null,p:null};}};
-const sh=d=>{try{localStorage.setItem(SK_H,JSON.stringify(d));}catch(e){}};
+const sh=d=>{try{localStorage.setItem(SK_H,JSON.stringify(d));_fsSet('historial','all',{data:d});}catch(e){}};
 const sc=d=>{try{d===null?localStorage.removeItem(SK_C):localStorage.setItem(SK_C,JSON.stringify(d));}catch(e){}};
 const sp=d=>{try{localStorage.setItem(SK_P,JSON.stringify(d));}catch(e){}};
 const gk_=()=>localStorage.getItem(SK_K)||'';
@@ -195,23 +205,15 @@ function syncBets(cur,event,hist){
           if(t2){if(!teamGoals[t2.name])teamGoals[t2.name]=0;teamGoals[t2.name]+=m.score2;if(m.score2>m.score1){if(!teamWins[t2.name])teamWins[t2.name]=0;teamWins[t2.name]++;}}
         });
       }
-      localStorage.setItem(SK_SYNC,JSON.stringify({
-        status:'ended',
-        date:lastJ?lastJ.date:'',
-        teams:lastJ?lastJ.teams:[],
-        allPlayers:S.players,
-        goals:lastJ?lastJ.goals||{}:{},
-        firstGoaler:null,
-        champion:chTeam?chTeam.name:null,
-        topScorer:topScorer,
-        teamGoals:teamGoals,
-        teamWins:teamWins
-      }));
+      var _syncEnd={status:'ended',date:lastJ?lastJ.date:'',teams:lastJ?lastJ.teams:[],allPlayers:S.players,goals:lastJ?lastJ.goals||{}:{},firstGoaler:null,champion:chTeam?chTeam.name:null,topScorer:topScorer,teamGoals:teamGoals,teamWins:teamWins};
+      localStorage.setItem(SK_SYNC,JSON.stringify(_syncEnd));
+      _fsSet('jornada','activa',_syncEnd);
       return;
     }
     if(!j){
       // Jornada borrada
       localStorage.removeItem(SK_SYNC);
+      _fsDel('jornada','activa');
       return;
     }
     // Jornada activa: compute firstGoaler
@@ -232,18 +234,9 @@ function syncBets(cur,event,hist){
         if(t2){if(!tg[t2.name])tg[t2.name]=0;tg[t2.name]+=m.score2;if(m.score2>m.score1){if(!tw[t2.name])tw[t2.name]=0;tw[t2.name]++;}}
       });
     }
-    localStorage.setItem(SK_SYNC,JSON.stringify({
-      status:'active',
-      date:j.date,
-      teams:j.teams,
-      allPlayers:S.players,
-      goals:goals,
-      firstGoaler:fg,
-      champion:null,
-      topScorer:null,
-      teamGoals:tg,
-      teamWins:tw
-    }));
+    var _syncActive={status:'active',date:j.date,teams:j.teams,allPlayers:S.players,goals:goals,firstGoaler:fg,champion:null,topScorer:null,teamGoals:tg,teamWins:tw};
+    localStorage.setItem(SK_SYNC,JSON.stringify(_syncActive));
+    _fsSet('jornada','activa',_syncActive);
   }catch(e){}
 }
 const setPlayers=p=>{S.players=p;sp(p);};

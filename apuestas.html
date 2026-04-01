@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>PachaBets</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap');
 :root{
@@ -910,10 +912,29 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:20px;height:20px;b
 </div>
 
 <script>
+/* ── Firebase ──────────────────────────────────────────────────────────── */
+var _db=null;
+var _cachedSync=undefined; // undefined = no cargado aún, null = no hay jornada
+var _cachedPh9=null;
+try{
+  firebase.initializeApp({apiKey:"AIzaSyAYvL0QzTqOpkVvcWv_L0K5GrmLh3m_Gxk",authDomain:"la-pachanga-a97b9.firebaseapp.com",projectId:"la-pachanga-a97b9",storageBucket:"la-pachanga-a97b9.firebasestorage.app",messagingSenderId:"425506069164",appId:"1:425506069164:web:91e3d5e3ee047a4b541d09"});
+  _db=firebase.firestore();
+  // Escuchar historial en tiempo real
+  _db.collection('historial').doc('all').onSnapshot(function(snap){
+    try{
+      if(snap.exists&&snap.data()&&snap.data().data){
+        _cachedPh9=snap.data().data;
+        localStorage.setItem('ph9',JSON.stringify(_cachedPh9));
+      }
+    }catch(e){}
+  });
+}catch(e){}
+
 /* ══════════════════════════════════════════════════════════════
    PUENTE CON LA PACHANGA (la_pachanga.html)
-   Lee datos de la jornada activa desde localStorage compartido.
-   Key: pachanga_sync_v1  (escrita por la_pachanga.html)
+   Lee datos de la jornada activa desde Firestore (tiempo real)
+   con fallback a localStorage compartido.
+   Key Firestore: jornada/activa  |  Key LS: pachanga_sync_v1
    ════════════════════════════════════════════════════════════ */
 
 var _SYNC_KEY = 'pachanga_sync_v1';
@@ -921,6 +942,7 @@ var _PLAYERS_FB = ['Agustín Begué','Bruno Pertile','Facundo Fernandez','Federi
 var _TEAMS_FB   = [{name:'Equipo 1',short:'E1',players:[]},{name:'Equipo 2',short:'E2',players:[]},{name:'Equipo 3',short:'E3',players:[]}];
 
 function _readSync(){
+  if(_cachedSync!==undefined)return _cachedSync;
   try{return JSON.parse(localStorage.getItem(_SYNC_KEY)||'null');}catch(e){return null;}
 }
 function _hasJornada(){
@@ -975,6 +997,7 @@ function _evalCond(cond,actual,threshold){
 
 /* ── Lee historial de La Pachanga (ph9) ── */
 function _readPh9(){
+  if(_cachedPh9!==null)return _cachedPh9;
   try{return JSON.parse(localStorage.getItem('ph9')||'[]');}catch(e){return [];}
 }
 
@@ -1126,16 +1149,33 @@ function _getFreq(type,name,sub,cond,threshold){
 /* ── Sync watcher: refresca la UI cuando la_pachanga actualiza ── */
 var _lastSyncStr='';
 function _startSyncWatcher(){
-  setInterval(function(){
-    try{
-      var cur=localStorage.getItem(_SYNC_KEY)||'';
-      if(cur===_lastSyncStr)return;
-      _lastSyncStr=cur;
-      var d=cur?JSON.parse(cur):null;
-      if(!d)return;
-      _onSyncUpdate(d);
-    }catch(e){}
-  },1500);
+  if(_db){
+    // Tiempo real via Firestore onSnapshot
+    _db.collection('jornada').doc('activa').onSnapshot(function(snap){
+      try{
+        var d=snap.exists?snap.data():null;
+        var str=JSON.stringify(d||'');
+        if(str===_lastSyncStr)return;
+        _lastSyncStr=str;
+        _cachedSync=d;
+        if(d){localStorage.setItem(_SYNC_KEY,JSON.stringify(d));}
+        else{localStorage.removeItem(_SYNC_KEY);}
+        if(d)_onSyncUpdate(d);
+      }catch(e){}
+    });
+  } else {
+    // Fallback: polling localStorage cada 1.5s
+    setInterval(function(){
+      try{
+        var cur=localStorage.getItem(_SYNC_KEY)||'';
+        if(cur===_lastSyncStr)return;
+        _lastSyncStr=cur;
+        var d=cur?JSON.parse(cur):null;
+        if(!d)return;
+        _onSyncUpdate(d);
+      }catch(e){}
+    },1500);
+  }
 }
 
 function _onSyncUpdate(d){
