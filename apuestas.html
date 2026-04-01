@@ -925,6 +925,8 @@ try{
       if(snap.exists&&snap.data()&&snap.data().data){
         _cachedPh9=snap.data().data;
         localStorage.setItem('ph9',JSON.stringify(_cachedPh9));
+        // Refrescar odds stat-based cuando llega nuevo historial
+        try{if(typeof renderMarket==='function'){renderMarket('goleador');renderMarket('primero');}}catch(e){}
       }
     }catch(e){}
   });
@@ -999,6 +1001,42 @@ function _evalCond(cond,actual,threshold){
 function _readPh9(){
   if(_cachedPh9!==null)return _cachedPh9;
   try{return JSON.parse(localStorage.getItem('ph9')||'[]');}catch(e){return [];}
+}
+
+/* ── Odds semilla basada en historial de goles (goleador / primero) ──
+   Calcula el promedio histórico de goles/jornada de cada jugador,
+   normaliza como probabilidades relativas y aplica rake.
+   Devuelve {val, type:'hist'} o null si no hay datos suficientes.    */
+function _histSeedOdds(market,option){
+  if(market!=='goleador'&&market!=='primero')return null;
+  try{
+    var ps=_getPlayerStats();
+    var opts=mktOpts(market);
+    if(!opts||opts.length===0)return null;
+    var scores={};
+    var hasData=false;
+    opts.forEach(function(p){
+      var s=ps[p];
+      if(s&&s.pj>=2){
+        var totalGoals=0;
+        var dist=s.dist||{};
+        for(var g=1;g<=5;g++)totalGoals+=g*(dist[g]||0);
+        totalGoals+=6.5*(dist[6]||0); // bucket 6+ estimado
+        scores[p]=totalGoals/s.pj;
+        hasData=true;
+      }else{
+        scores[p]=0.7; // lambda Poisson de respaldo
+      }
+    });
+    if(!hasData)return null;
+    var total=opts.reduce(function(sum,p){return sum+(scores[p]||0.7);},0);
+    if(total<=0)return null;
+    var prob=(scores[option]||0.7)/total;
+    prob=Math.min(0.95,Math.max(0.02,prob));
+    var val=Math.max(1.00,(1-S.rake)/prob);
+    return {val:parseFloat(val.toFixed(2)),type:'hist'};
+  }catch(e){}
+  return null;
 }
 
 /* ── Estadísticas por jugador (construidas desde ph9) ── */
@@ -1375,7 +1413,7 @@ function afterLogin(){
   if(dn) dn.textContent=fullName;
   const da=document.getElementById('bettor-display-alias');
   if(da) da.textContent=alias?alias:'Sin alias';
-  renderUserBadge(); showApp(); renderNav(); renderAll();
+  renderUserBadge(); showApp(); renderNav(); renderAll(); showScreen(curScreen);
   const mbp=document.getElementById('mybets-player');
   if(mbp){ mbp.value=fullName; renderMyBets(fullName); }
   _updateLimitDisplay(fullName);
@@ -1569,8 +1607,8 @@ function getOdds(market,option){
   const realTotal=pool.reduce((s,b)=>s+b.amount,0);
   const n=mktOpts(market).length||3;
 
-  // Without any real bets → seed
-  if(realTotal===0) return {val:SEED_ODDS_CAP,type:'seed'};
+  // Without any real bets → try stats-based seed, fallback to flat seed
+  if(realTotal===0){const hs=_histSeedOdds(market,option);return hs||{val:SEED_ODDS_CAP,type:'seed'};}
 
   const realFor=pool.filter(b=>b.option===option).reduce((s,b)=>s+b.amount,0);
 
