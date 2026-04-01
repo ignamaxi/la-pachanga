@@ -548,15 +548,11 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:20px;height:20px;b
           style="accent-color:var(--accent);width:100%;"/>
       </div>
       <div id="eq-goles-odds-row" style="display:none;">
-        <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;" id="eq-goles-desc">—</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div class="mopt" style="flex-direction:column;padding:10px;cursor:pointer;gap:4px;" onclick="selectEqSide('goles','si')">
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;">✅ SÍ</div>
-            <div class="odds-val" id="eq-goles-si-odds">—</div>
-          </div>
-          <div class="mopt" style="flex-direction:column;padding:10px;cursor:pointer;gap:4px;" onclick="selectEqSide('goles','no')">
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;">❌ NO</div>
-            <div class="odds-val" id="eq-goles-no-odds">—</div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px 12px;">
+          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;" id="eq-goles-desc">—</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:10px;color:var(--text3);">Odd base</div>
+            <div class="odds-val" style="color:var(--a4);" id="eq-goles-si-odds">—</div>
           </div>
         </div>
       </div>
@@ -593,15 +589,11 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:20px;height:20px;b
           style="accent-color:var(--accent);width:100%;"/>
       </div>
       <div id="eq-wins-odds-row" style="display:none;">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;" id="eq-wins-desc">—</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div class="mopt" style="flex-direction:column;padding:10px;cursor:pointer;gap:4px;" onclick="selectEqSide('wins','si')">
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;">✅ SÍ</div>
-            <div class="odds-val" id="eq-wins-si-odds">—</div>
-          </div>
-          <div class="mopt" style="flex-direction:column;padding:10px;cursor:pointer;gap:4px;" onclick="selectEqSide('wins','no')">
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;">❌ NO</div>
-            <div class="odds-val" id="eq-wins-no-odds">—</div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px 12px;">
+          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px;" id="eq-wins-desc">—</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:10px;color:var(--text3);">Odd base</div>
+            <div class="odds-val" style="color:var(--a4);" id="eq-wins-si-odds">—</div>
           </div>
         </div>
       </div>
@@ -1128,6 +1120,8 @@ function _histFreq(player,cond,threshold){
   // Jornadas con goles registrados (buckets 1..6)
   var goalsJornadas=0;
   for(var g=1;g<=6;g++)goalsJornadas+=(dist[g]||0);
+  // Si el jugador nunca marcó, usar Poisson (evitar 0% → 15x para condiciones normales)
+  if(goalsJornadas===0)return null;
   // Jornadas con 0 goles = participó pero no marcó
   var zero=Math.max(0,s.pj-goalsJornadas);
 
@@ -1168,12 +1162,13 @@ function _teamHistFreq(teamName,sub,cond,threshold){
 
 /* ── Frecuencia combinada: histórico real + Poisson de respaldo ──
    Si hay historial suficiente usa datos reales,
-   si no usa Poisson con lambda calibrado.                           */
+   si no usa Poisson con lambda calibrado.
+   λ_jugador=2.0 → "≥1 gol" ≈ 87% → 1.04x, "≥2 goles" ≈ 59% → 1.52x, etc.  */
 function _getFreq(type,name,sub,cond,threshold){
   if(type==='player'){
     var h=_histFreq(name,cond,threshold);
     if(h!==null)return {freq:h,src:'hist'};
-    return {freq:_fallbackFreq(cond,threshold,0.7),src:'seed'};
+    return {freq:_fallbackFreq(cond,threshold,2.0),src:'seed'};
   }
   if(type==='team'){
     var h2=_teamHistFreq(name,sub,cond,threshold);
@@ -1233,10 +1228,9 @@ function _onSyncUpdate(d){
     if(sb){var tn=d.teams&&d.teams.map(function(t){return t.name;}).join(' · ');sb.textContent='⚽ Jornada activa: '+tn;sb.style.color='var(--a2)';}
     populateSelects();
     if(d.date){var elD2=document.getElementById('jornadaDate');if(elD2)elD2.textContent=d.date;}
-    // Cerrar apuestas si hay bets confirmadas
+    // Cerrar apuestas cuando arranca la jornada
     if(S.status==='open'){
-      var hasBets=Object.values(S.bets).some(function(arr){return arr.length>0;});
-      if(hasBets){setStatus('closed');showToast('⚽ Jornada comenzó — apuestas cerradas','tinf');}
+      setStatus('closed');showToast('⚽ Jornada comenzó — apuestas cerradas','tinf');
     }
     // Pre-fill primer goleador si ya hubo un gol
     if(d.firstGoaler){
@@ -1604,16 +1598,15 @@ const ODDS_DAMP = 5000; // $5.000 virtual spread → se diluye con el volumen re
 
 function getOdds(market,option){
   const pool=S.oddsPool[market]||[];
-  const realTotal=pool.reduce((s,b)=>s+b.amount,0);
   const n=mktOpts(market).length||3;
-
-  // Without any real bets → try stats-based seed, fallback to flat seed
-  if(realTotal===0){const hs=_histSeedOdds(market,option);return hs||{val:SEED_ODDS_CAP,type:'seed'};}
 
   const realFor=pool.filter(b=>b.option===option).reduce((s,b)=>s+b.amount,0);
 
-  // Virtual pool adds ODDS_DAMP distributed evenly — reduces as real volume grows
-  // Effect diminishes to <5% once real pool exceeds 10× ODDS_DAMP
+  // No real bets on this specific option → use stats-based seed (stable, prevents parimutuel instability)
+  if(realFor===0){const hs=_histSeedOdds(market,option);return hs||{val:SEED_ODDS_CAP,type:'seed'};}
+
+  // Real bets on this option → parimutuel with virtual dampening
+  const realTotal=pool.reduce((s,b)=>s+b.amount,0);
   const vPerOption=ODDS_DAMP/n;
   const adjustedFor=realFor+vPerOption;
   const adjustedTotal=realTotal+ODDS_DAMP;
@@ -1622,8 +1615,7 @@ function getOdds(market,option){
   if(adjustedContra<=0) return {val:1.00,type:'real'};
 
   const odds=adjustedTotal*(1-S.rake)/adjustedFor;
-  const type=realFor>0?'real':'seed';
-  return {val:Math.max(1.00,parseFloat(odds.toFixed(2))),type};
+  return {val:Math.max(1.00,parseFloat(odds.toFixed(2))),type:'real'};
 }
 
 /* ══ MARKET RENDER ══ */
@@ -3555,39 +3547,36 @@ function populateHistPlayerSelect(){
   sel.onchange=updateHistDesc;
 }
 
-/* ══ EQUIPOS MARKET ══ */
-let _eqGolesCond=null,_eqGolesSide=null,_eqWinsCond=null,_eqWinsSide=null;
+/* ══ EQUIPOS MARKET — apuesta positiva (sin SÍ/NO), probabilistic seeds ══ */
+let _eqGolesCond=null,_eqWinsCond=null;
 
-function _eqKey(team,sub,cond,threshold,side){return `${team}|${sub}|${cond}|${threshold}|${side}`;}
-function _calcSiNoOdds(siAmt,noAmt){
-  const virt=ODDS_DAMP/2;
-  const adjSi=siAmt+virt,adjNo=noAmt+virt,tot=adjSi+adjNo;
-  return{
-    si:Math.max(1.00,parseFloat((tot*(1-S.rake)/adjSi).toFixed(2))),
-    no:Math.max(1.00,parseFloat((tot*(1-S.rake)/adjNo).toFixed(2)))
-  };
-}
-function _eqOdds(siKey,noKey){
+// Option key: "team|sub|cond|threshold" — sin lado, solo apuesta positiva
+function _eqKey(team,sub,cond,threshold){return `${team}|${sub}|${cond}|${threshold}`;}
+
+// Odds de una condición de equipo (positivo-only, modelo como historico)
+function _eqOdds(optKey){
   const pool=S.oddsPool.equipos||[];
-  const siAmt=pool.filter(b=>b.option===siKey).reduce((s,b)=>s+b.amount,0);
-  const noAmt=pool.filter(b=>b.option===noKey).reduce((s,b)=>s+b.amount,0);
+  const total=pool.reduce((s,b)=>s+b.amount,0);
+  // Normalizar: aceptar también formato viejo (con |si al final)
+  const optAmt=pool.filter(b=>b.option===optKey||b.option===optKey+'|si').reduce((s,b)=>s+b.amount,0);
 
-  if(siAmt===0&&noAmt===0){
-    // Sin apuestas reales: seed desde estadísticas históricas del equipo
-    const parts=siKey.split('|');
+  if(optAmt===0){
+    // Sin apuestas: seed desde estadísticas históricas del equipo
+    const parts=optKey.split('|');
     const team=parts[0],sub=parts[1],cond=parts[2],threshold=parseInt(parts[3]);
-    const {freq:freqSi,src}=_getFreq('team',team,sub,cond,threshold);
-    // freqSi = P(SÍ se cumple la condición)
-    // freqNo = P(NO se cumple) = 1 - freqSi
-    const freqNo=Math.min(0.95,Math.max(0.03,1-freqSi));
-    const siO=Math.min(15.00,Math.max(1.00,parseFloat(((1-S.rake)/freqSi).toFixed(2))));
-    const noO=Math.min(15.00,Math.max(1.00,parseFloat(((1-S.rake)/freqNo).toFixed(2))));
-    return {si:siO,no:noO,siAmt:0,noAmt:0,type:src};
+    const {freq,src}=_getFreq('team',team,sub,cond,threshold);
+    const raw=parseFloat(((1-S.rake)/freq).toFixed(2));
+    return {val:Math.min(12.00,Math.max(1.00,raw)),type:src,optAmt:0};
   }
 
-  // Con apuestas reales: SÍ/NO son opuestos → parimutuel bilateral
-  return {...(_calcSiNoOdds(siAmt,noAmt)),siAmt,noAmt,type:'real'};
+  // Con apuestas reales: parimutuel con virtual dampening
+  const uniqueOpts=new Set(pool.map(b=>{const p=b.option.split('|');return p.slice(0,4).join('|');}));
+  const vPerOpt=ODDS_DAMP/Math.max(1,uniqueOpts.size);
+  const adjFor=optAmt+vPerOpt;
+  const adjTotal=total+ODDS_DAMP;
+  return {val:Math.max(1.00,parseFloat((adjTotal*(1-S.rake)/adjFor).toFixed(2))),type:'real',optAmt};
 }
+
 function selectEqGolesCond(btn){
   document.querySelectorAll('#eq-goles-body .prop-cond-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');_eqGolesCond=btn.dataset.cond;updateEqGolesOdds();
@@ -3596,38 +3585,36 @@ function selectEqWinsCond(btn){
   document.querySelectorAll('#eq-wins-body .prop-cond-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');_eqWinsCond=btn.dataset.cond;updateEqWinsOdds();
 }
-function selectEqSide(sub,side){
-  if(sub==='goles'){_eqGolesSide=side;}else{_eqWinsSide=side;}
-  const siId=`eq-${sub}-si-odds`,noId=`eq-${sub}-no-odds`;
-  document.getElementById(siId)?.closest('.mopt')?.classList.toggle('sel',side==='si');
-  document.getElementById(noId)?.closest('.mopt')?.classList.toggle('sel',side==='no');
-}
+function selectEqSide(){/* eliminado — solo apuesta positiva */}
+
 function _updateEqDisplay(sub,team,cond,threshold){
   if(!team||!cond) return;
-  const siKey=_eqKey(team,sub,cond,threshold,'si');
-  const noKey=_eqKey(team,sub,cond,threshold,'no');
-  const res=_eqOdds(siKey,noKey);const{si,no,siAmt,noAmt,type:_eqType}=res;
-  const siEl=document.getElementById(`eq-${sub}-si-odds`);if(siEl)siEl.textContent=si.toFixed(2)+'x'+(res&&res.type==='hist'?' 📊':'');
-  const noEl=document.getElementById(`eq-${sub}-no-odds`);if(noEl)noEl.textContent=no.toFixed(2)+'x';
+  const optKey=_eqKey(team,sub,cond,threshold);
+  const res=_eqOdds(optKey);
+  const siEl=document.getElementById(`eq-${sub}-si-odds`);
+  if(siEl)siEl.textContent=res.val.toFixed(2)+'x'+(res.type==='hist'?' 📊':res.type==='seed'?' (base)':'');
   const row=document.getElementById(`eq-${sub}-odds-row`);if(row)row.style.display='block';
-  const condLbl={gte:`${threshold}+`,gt:`>${threshold}`,lte:`≤${threshold}`,lt:`<${threshold}`,eq:`=${threshold}`};
+  const condLbl={gte:`${threshold}+`,gt:`>${threshold}`,lte:`${threshold} o menos`,lt:`menos de ${threshold}`,eq:`exactamente ${threshold}`};
   const subLbl=sub==='goles'?'goles':'victorias';
   const descEl=document.getElementById(`eq-${sub}-desc`);
   if(descEl)descEl.textContent=`${team} hace ${condLbl[cond]} ${subLbl}`;
   const hdr=document.getElementById(`hdr-eq-${sub}`);
-  if(hdr)hdr.textContent=(siAmt+noAmt)>0?`Pozo: $${fmt(siAmt+noAmt)}`:'Sin apuestas';
+  const poolTotal=(S.oddsPool.equipos||[]).reduce((s,b)=>s+b.amount,0);
+  if(hdr)hdr.textContent=poolTotal>0?`Pozo: $${fmt(poolTotal)}`:'Sin apuestas';
   const totEl=document.getElementById('pool-eq-total');
-  if(totEl)totEl.textContent='$'+fmt((S.oddsPool.equipos||[]).reduce((s,b)=>s+b.amount,0));
+  if(totEl)totEl.textContent='$'+fmt(poolTotal);
 }
 function updateEqGolesOdds(){
   const team=document.getElementById('eq-goles-team')?.value;
-  const threshold=parseInt(document.getElementById('eq-goles-threshold')?.value)||3;
-  _updateEqDisplay('goles',team,_eqGolesCond,threshold);
+  const rawT=document.getElementById('eq-goles-threshold')?.value;
+  const threshold=rawT!==''&&rawT!==undefined?parseInt(rawT):3;
+  _updateEqDisplay('goles',team,_eqGolesCond,isNaN(threshold)?3:threshold);
 }
 function updateEqWinsOdds(){
   const team=document.getElementById('eq-wins-team')?.value;
-  const threshold=parseInt(document.getElementById('eq-wins-threshold')?.value)||3;
-  _updateEqDisplay('wins',team,_eqWinsCond,threshold);
+  const rawT=document.getElementById('eq-wins-threshold')?.value;
+  const threshold=rawT!==''&&rawT!==undefined?parseInt(rawT):3;
+  _updateEqDisplay('wins',team,_eqWinsCond,isNaN(threshold)?3:threshold);
 }
 function populateEqTeamSelects(){
   const opts='<option value="">Seleccioná un equipo</option>'+_getTeams().map(function(t){return `<option value="${t.name}">${t.name}</option>`;}).join('');
@@ -3639,27 +3626,21 @@ function addEqToCart(sub){
   const pname=ud?.fullName||AUTH.currentUser;
   if(!pname){showToast('Iniciá sesión','terr');return;}
   const team=document.getElementById(`eq-${sub}-team`)?.value;
-  const threshold=parseInt(document.getElementById(`eq-${sub}-threshold`)?.value)||2;
+  const rawT=document.getElementById(`eq-${sub}-threshold`)?.value;
+  const threshold=rawT!==''&&rawT!==undefined?parseInt(rawT):3;
   const cond=sub==='goles'?_eqGolesCond:_eqWinsCond;
-  const side=sub==='goles'?_eqGolesSide:_eqWinsSide;
   const amount=parseInt(document.getElementById(`amt-eq-${sub}`)?.value);
   if(!team){showToast('Seleccioná un equipo','terr');return;}
   if(!cond){showToast('Seleccioná una condición','terr');return;}
-  if(!side){showToast('Elegí SÍ o NO','terr');return;}
   if(!amount||amount<500){showToast('Mínimo $500','terr');return;}
-  const myKey=_eqKey(team,sub,cond,threshold,side);
-  const contraKey=_eqKey(team,sub,cond,threshold,side==='si'?'no':'si');
-  const pool=S.oddsPool.equipos||[];
-  const myAmt=pool.filter(b=>b.option===myKey).reduce((s,b)=>s+b.amount,0);
-  const contraAmt=pool.filter(b=>b.option===contraKey).reduce((s,b)=>s+b.amount,0);
-  const virt=ODDS_DAMP/2;
-  const oddsAtTime=Math.max(1.00,parseFloat((((myAmt+virt+amount)+(contraAmt+virt))*(1-S.rake)/(myAmt+virt+amount)).toFixed(2)));
-  const condLbl={gte:`${threshold}+`,gt:`>${threshold}`,lte:`≤${threshold}`,lt:`<${threshold}`,eq:`=${threshold}`};
+  const optKey=_eqKey(team,sub,cond,isNaN(threshold)?3:threshold);
+  const {val:oddsAtTime}=_eqOdds(optKey);
+  const condLbl={gte:`${threshold}+`,gt:`>${threshold}`,lte:`${threshold} o menos`,lt:`menos de ${threshold}`,eq:`exactamente ${threshold}`};
   const subLbl=sub==='goles'?'goles':'victorias';
-  const optLabel=`${team} — ${condLbl[cond]} ${subLbl} — ${side==='si'?'SÍ':'NO'}`;
-  S.cart.push({id:uid(),player:pname,playerAlias:ud?.alias||'',market:'equipos',option:myKey,optionLabel:optLabel,amount,isEarlyBird:S.earlyBird.active,oddsAtTime});
+  const optLabel=`${team} — ${condLbl[cond]} ${subLbl}`;
+  S.cart.push({id:uid(),player:pname,playerAlias:ud?.alias||'',market:'equipos',option:optKey,optionLabel:optLabel,amount,isEarlyBird:S.earlyBird.active,oddsAtTime:parseFloat(oddsAtTime.toFixed(2))});
   document.getElementById(`amt-eq-${sub}`).value='';
-  renderCart(); showToast(`🛡️ ${optLabel}`,'tok');
+  renderCart(); showToast(`🛡️ ${optLabel} — ${oddsAtTime.toFixed(2)}x`,'tok');
 }
 
 /* ══ Resolution inputs for new markets ══ */
@@ -3811,25 +3792,30 @@ function resolveNewMarkets(addP,orgBonusRef){
     }
   }
 
-  // ── EQUIPOS: same parimutuel SÍ/NO per pair ──
+  // ── EQUIPOS: positivo-only (sin SÍ/NO). Soporta también formato viejo con |si/|no ──
   const eqBets=confirmedBets('equipos');
   if(eqBets.length){
+    // Normalizar: extraer siempre los primeros 4 campos del key
     const eqPairs=new Set(eqBets.map(b=>b.option.split('|').slice(0,4).join('|')));
     eqPairs.forEach(pair=>{
       const[team,sub,cond,threshold]=pair.split('|');
       const safeId=pair.replace(/[^a-z0-9]/gi,'_');
       const inputEl=document.getElementById(`eq-result-${safeId}`);
-      const pairBets=eqBets.filter(b=>b.option.startsWith(pair+'|'));
+      // Incluir bets con formato nuevo (key=pair) y viejo (|si / |no)
+      const pairBets=eqBets.filter(b=>b.option===pair||b.option===pair+'|si'||b.option===pair+'|no');
       if(!inputEl||inputEl.value===''){
         pairBets.forEach(b=>addP(b.player,b.amount,b.amount));return;
       }
       const actual=parseInt(inputEl.value);
       const won=evalPropCondition(cond,actual,parseInt(threshold));
-      const siKey=_eqKey(team,sub,cond,threshold,'si');
-      const noKey=_eqKey(team,sub,cond,threshold,'no');
-      const winKey=won?siKey:noKey;
-      const winBets=pairBets.filter(b=>b.option===winKey);
-      const loseBets=pairBets.filter(b=>b.option!==winKey);
+      // Determinar ganadores: nuevo formato (pair exacto) = gana si won; viejo |si = gana si won; viejo |no = gana si !won
+      const winBets=pairBets.filter(b=>{
+        if(b.option===pair) return won;       // nuevo formato positivo
+        if(b.option===pair+'|si') return won;  // viejo: SÍ gana si condición se cumplió
+        if(b.option===pair+'|no') return !won; // viejo: NO gana si condición no se cumplió
+        return false;
+      });
+      const loseBets=pairBets.filter(b=>!winBets.includes(b));
       loseBets.forEach(b=>addP(b.player,b.amount,0));
       const totalPool=pairBets.reduce((s,b)=>s+b.amount,0);
       if(!winBets.length){orgBonusRef.val+=totalPool;return;}
