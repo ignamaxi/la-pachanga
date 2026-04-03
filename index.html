@@ -488,7 +488,7 @@ function attach(){
     on('nteams_m',()=>{const c=S.cfg;c.nTeams=Math.max(2,c.nTeams-1);svCfg(c);render();});
     on('nteams_p',()=>{const c=S.cfg;c.nTeams=Math.min(4,c.nTeams+1);svCfg(c);render();});
     on('ppt_m',()=>{const c=S.cfg;c.ppt=Math.max(3,c.ppt-1);svCfg(c);render();});
-    on('ppt_p',()=>{const c=S.cfg;c.ppt=Math.min(7,c.ppt+1);svCfg(c);render();});
+    on('ppt_p',()=>{const c=S.cfg;c.ppt=Math.min(11,c.ppt+1);svCfg(c);render();});
     on('secsm_m',()=>{const c=S.cfg;const m=Math.max(1,Math.round(c.secs/60)-1);c.secs=m*60;svCfg(c);render();});
     on('secsm_p',()=>{const c=S.cfg;const m=Math.min(15,Math.round(c.secs/60)+1);c.secs=m*60;svCfg(c);render();});
     on('goals_m',()=>{const c=S.cfg;c.goals=Math.max(1,c.goals-1);svCfg(c);render();});
