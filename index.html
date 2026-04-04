@@ -491,11 +491,11 @@ function attach(){
     on('nteams_m',()=>{const c=S.cfg;c.nTeams=Math.max(2,c.nTeams-1);svCfg(c);render();});
     on('nteams_p',()=>{const c=S.cfg;c.nTeams=Math.min(4,c.nTeams+1);svCfg(c);render();});
     on('ppt_m',()=>{const c=S.cfg;c.ppt=Math.max(3,c.ppt-1);svCfg(c);render();});
-    on('ppt_p',()=>{const c=S.cfg;c.ppt=Math.min(7,c.ppt+1);svCfg(c);render();});
+    on('ppt_p',()=>{const c=S.cfg;c.ppt=Math.min(11,c.ppt+1);svCfg(c);render();});
     on('secsm_m',()=>{const c=S.cfg;const m=Math.max(1,Math.round(c.secs/60)-1);c.secs=m*60;svCfg(c);render();});
-    on('secsm_p',()=>{const c=S.cfg;const m=Math.min(15,Math.round(c.secs/60)+1);c.secs=m*60;svCfg(c);render();});
+    on('secsm_p',()=>{const c=S.cfg;const m=Math.min(60,Math.round(c.secs/60)+1);c.secs=m*60;svCfg(c);render();});
     on('goals_m',()=>{const c=S.cfg;c.goals=Math.max(0,(c.goals||2)-1);svCfg(c);render();});
-    on('goals_p',()=>{const c=S.cfg;c.goals=Math.min(9,(c.goals||2)+1);svCfg(c);render();});
+    on('goals_p',()=>{const c=S.cfg;c.goals=Math.min(20,(c.goals||2)+1);svCfg(c);render();});
     on('admpin_save',()=>{const pi=g('admpin_new');const newPin=pi?pi.value.trim():'';S.cfg.pin=newPin;svCfg(S.cfg);const b=g('admpin_save');if(b){b.textContent=newPin?'\u2713 PIN guardado':'\u2713 PIN removido';setTimeout(()=>render(),1000);}});
     on('adm_resetp',()=>mConfirm('\u00bfRestaurar jugadores?','Se reemplazar\u00e1 la lista con los jugadores por defecto.',()=>{setPlayers(sbl(DP));render();},'Restaurar','btn-red'));
     on('adm_resth',()=>mConfirm('\u00bfRestaurar historial?','Se borrar\u00e1n TODAS las jornadas guardadas. Esta acci\u00f3n no se puede deshacer.',()=>{S.hist=[];sh([]);render();},'Borrar historial','btn-red'));
